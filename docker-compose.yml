@@ -1,0 +1,48 @@
+version: "3.8"
+
+services:
+  postgres:
+    container_name: postgres
+    image: postgres:16.2
+    environment:
+      POSTGRES_DB: chatdb
+      POSTGRES_USER: ykilic
+      POSTGRES_PASSWORD: 173417A.a
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - /Users/yigitkagankilic/Desktop/Projects/chatapp-backend/postgres_data:/var/lib/postgresql/data
+    networks:
+      upschool:
+        ipv4_address: 172.25.0.7
+    command: postgres -c wal_level=logical
+    restart: always
+
+  pgadmin:
+    container_name: pgadmin
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: yigitkagankilic@gmail.com
+      PGADMIN_DEFAULT_PASSWORD: 173417A.a
+    ports:
+      - "8082:80"
+    networks:
+      upschool:
+        ipv4_address: 172.25.0.6
+    restart: always
+
+  redis:
+    container_name: my_redis
+    image: redis:7
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - /Users/yigitkagankilic/Desktop/Projects/chatapp-backend/redis_data:/data
+
+networks:
+  upschool:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
