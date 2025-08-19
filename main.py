@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from models import User, ValidationEmailLog, Message
+from models import User, ValidationEmailLog, Message, Friends
 from database import Database
 from redis_handler import RedisHandler
 from email_handler import send_email_smtp
@@ -19,7 +19,7 @@ import security
 import string
 
 from schemas.s_auth import UserCreate, ValidateEmailBase, ResendEmailModel, LoginModel, ForgotPasswordModel
-from schemas.s_chat import ChatItem
+from schemas.s_chat import ChatItem, AddFriendItem
 
 load_dotenv()
 
@@ -74,10 +74,12 @@ async def register(data: UserCreate, background_tasks: BackgroundTasks, session:
                 content={"message": "User Already Exists"}
             )
         hashed_password = security.hash_password(data.password)
+        user_tag = generate_code()
         new_user = User(
             username=data.username,
             password=hashed_password,
-            email=data.email
+            email=data.email,
+            user_tag=user_tag
         )
         session.add(new_user)
         await session.commit()
@@ -182,6 +184,7 @@ async def resend_email(data: ResendEmailModel, background_tasks: BackgroundTasks
             validation_code = generate_code()
             redis_key = f"validation_code:{current_user.id}"
             await redis_handler.set(key=redis_key, value=validation_code, expire_seconds=os.getenv("VALIDATION_KEY_EXPIRED_SECOND"))
+            print(validation_code)
             background_tasks.add_task(
             send_email_smtp,
             recipient_email=current_user.email,
@@ -203,42 +206,6 @@ async def resend_email(data: ResendEmailModel, background_tasks: BackgroundTasks
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"message" : "Internal Server Error"}
         )
-
-# @app.post("/users/login")
-# async def login_for_access_token(form_data: LoginModel, session: AsyncSession = Depends(db.get_session)): # UserLogin şeması kullanılıyor
-#     """
-#     Kullanıcı girişi. E-posta ve şifre ile token alınır.
-#     """
-#     try:
-#         # 1. Kullanıcıyı email ile bul
-#         query = select(User).where(User.email == form_data.email, User.password == form_data.password)
-#         result = await session.execute(query)
-#         user = result.scalars().first()
-
-#         # 2. Kullanıcı yoksa veya şifre yanlışsa hata ver
-#         # Modeldeki alan adı 'hashed_password' olmalı
-#         if not user:
-#             raise HTTPException(
-#                 status_code=status.HTTP_401_UNAUTHORIZED,
-#                 detail="Geçersiz e-posta veya şifre.",
-#                 headers={"WWW-Authenticate": "Bearer"},
-#             )
-
-#         # 4. Erişim token'ı oluştur
-#         # User modelinde uuid ve role_id alanları olduğunu varsayıyoruz
-#         access_token_data = {"user_id": user.id}
-#         access_token = security.create_access_token(data=access_token_data)
-        
-#         return JSONResponse(
-#             status_code=status.HTTP_200_OK,
-#             content={"message" : "Login Successfully", "access_token" : access_token, "token_type" : "bearer", "username" : user.username}
-#         )
-#     except Exception as e:
-#         print(e)
-#         return JSONResponse(
-#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#             content={"message" : "Internal Server Error"}
-#         )
 
 @app.post("/users/login")
 async def login_for_access_token(
@@ -393,6 +360,80 @@ async def forgot_password(data: ForgotPasswordModel, background_tasks: Backgroun
             content={"message": "Internal Server Error"}
         )
 
+# @app.get("/chat/chat-users/{user_id}")
+# async def get_chats(user_id: int, session: AsyncSession = Depends(db.get_session)):
+#     try:
+#         current_user = await is_there_this_user(user_id, session)
+#         if not current_user:
+#             return JSONResponse(
+#                 status_code=404,
+#                 content={"message" : "User Not Found"}
+#             )
+        
+#         current_user_id = current_user.id
+
+#         latest_message_subquery = select(
+#             func.max(Message.sent_date).label('max_sent_date'),
+#             func.least(Message.sender_id, Message.receiver_id).label("user1"),
+#             func.greatest(Message.sender_id, Message.receiver_id).label("user2")
+#         ).filter(
+#             or_(Message.sender_id == current_user_id, Message.receiver_id == current_user_id)
+#         ).group_by(
+#             func.least(Message.sender_id, Message.receiver_id),
+#             func.greatest(Message.sender_id, Message.receiver_id),
+#         ).subquery()
+        
+#         # Alt sorgu ile en son mesajları ve ilgili kullanıcıları çek
+#         stmt = select(Message, User).join(
+#             User,
+#             or_(
+#                 User.id == Message.sender_id,
+#                 User.id == Message.receiver_id
+#             )
+#         ).filter(
+#             or_(
+#                 Message.sender_id == current_user_id,
+#                 Message.receiver_id == current_user_id
+#             ),
+#             Message.sent_date == latest_message_subquery.c.max_sent_date,
+#             User.id != current_user_id
+#         )
+
+#         result = await session.execute(stmt)
+#         latest_messages_with_users = result.all()
+
+#         chats_list = []
+#         for message, other_user in latest_messages_with_users:
+#             # Okunmamış mesaj sayısını asenkron olarak hesapla
+#             unread_count_stmt = select(func.count()).filter(
+#                 Message.sender_id == other_user.id,
+#                 Message.receiver_id == current_user_id,
+#                 Message.is_read == False
+#             )
+#             unread_count_result = await session.execute(unread_count_stmt)
+#             unread_count = unread_count_result.scalar_one()
+
+#             chats_list.append(ChatItem(
+#                 name=other_user.username,
+#                 receiver_id=other_user.id,
+#                 message=message.content,
+#                 time=message.sent_date.strftime('%H:%M'),
+#                 unread=unread_count,
+#                 avatar=f'https://randomuser.me/api/portraits/men/{other_user.id % 10}.jpg',
+#                 current_user_id=other_user.id
+#             ))
+
+#         print(jsonable_encoder(chats_list))
+
+#         return chats_list
+
+#     except Exception as e:
+#         print(e)
+#         return JSONResponse(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             content={"message": "Internal Server Error"}
+#         )
+
 @app.get("/chat/chat-users/{user_id}")
 async def get_chats(user_id: int, session: AsyncSession = Depends(db.get_session)):
     try:
@@ -400,11 +441,12 @@ async def get_chats(user_id: int, session: AsyncSession = Depends(db.get_session
         if not current_user:
             return JSONResponse(
                 status_code=404,
-                content={"message" : "User Not Found"}
+                content={"message": "User Not Found"}
             )
         
         current_user_id = current_user.id
-
+        
+        # 1. Mesajlaşma geçmişi olan arkadaşları bulma sorgusu
         latest_message_subquery = select(
             func.max(Message.sent_date).label('max_sent_date'),
             func.least(Message.sender_id, Message.receiver_id).label("user1"),
@@ -416,7 +458,6 @@ async def get_chats(user_id: int, session: AsyncSession = Depends(db.get_session
             func.greatest(Message.sender_id, Message.receiver_id),
         ).subquery()
         
-        # Alt sorgu ile en son mesajları ve ilgili kullanıcıları çek
         stmt = select(Message, User).join(
             User,
             or_(
@@ -430,14 +471,17 @@ async def get_chats(user_id: int, session: AsyncSession = Depends(db.get_session
             ),
             Message.sent_date == latest_message_subquery.c.max_sent_date,
             User.id != current_user_id
-        )
+        ).distinct() # Tekrar edenleri engellemek için distinct kullanın
 
         result = await session.execute(stmt)
         latest_messages_with_users = result.all()
-
+        
+        # Sohbet listesi için bir set oluşturun, böylece tekrar eden kullanıcıları kolayca yönetebilirsiniz
+        chatted_user_ids = {other_user.id for message, other_user in latest_messages_with_users}
+        
         chats_list = []
         for message, other_user in latest_messages_with_users:
-            # Okunmamış mesaj sayısını asenkron olarak hesapla
+            # Okunmamış mesaj sayısını hesapla
             unread_count_stmt = select(func.count()).filter(
                 Message.sender_id == other_user.id,
                 Message.receiver_id == current_user_id,
@@ -455,13 +499,42 @@ async def get_chats(user_id: int, session: AsyncSession = Depends(db.get_session
                 avatar=f'https://randomuser.me/api/portraits/men/{other_user.id % 10}.jpg',
                 current_user_id=other_user.id
             ))
+            
+        # 2. Hiç mesajlaşmamış ancak arkadaş olan kullanıcıları bulma sorgusu
+        # Arkadaşlık tablosundaki her iki durumu da kontrol edin
+        friend_stmt = select(User).join(
+            Friends,
+            or_(
+                Friends.requestor_id == User.id,
+                Friends.addressee_id == User.id
+            )
+        ).filter(
+            or_(
+                Friends.requestor_id == current_user_id,
+                Friends.addressee_id == current_user_id
+            ),
+            User.id != current_user_id,
+            User.id.notin_(chatted_user_ids) # Mesajlaşma geçmişi olanları dışla
+        ).distinct()
 
-        print(jsonable_encoder(chats_list))
+        friends_without_chat = await session.execute(friend_stmt)
+        friends = friends_without_chat.scalars().all()
+        
+        for friend in friends:
+            chats_list.append(ChatItem(
+                name=friend.username,
+                receiver_id=friend.id,
+                message="Henüz mesajlaşmadınız.", # Varsayılan bir mesaj
+                time="", # Zaman bilgisi yok
+                unread=0,
+                avatar=f'https://randomuser.me/api/portraits/men/{friend.id % 10}.jpg',
+                current_user_id=friend.id
+            ))
 
         return chats_list
 
     except Exception as e:
-        print(e)
+        print(f"Hata: {e}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"message": "Internal Server Error"}
@@ -493,6 +566,38 @@ async def get_messages_between_users(user1_id: int, user2_id: int, session: Asyn
             content={"messages" : jsonable_encoder(messages)}
         )
 
+    except Exception as e:
+        print(e)
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"message" : "Internal Server Error"}
+        )
+
+@app.post("/chat/add-friend")
+async def add_friend(data: AddFriendItem, session: AsyncSession = Depends(db.get_session)):
+    try:
+        current_user = await is_there_this_user(data.userId, session)
+        stmt_user = select(User).where(User.username == data.username, User.user_tag == data.userTag)
+        result = await session.execute(stmt_user)
+        user = result.scalars().first()
+        if not user or not current_user:
+            return JSONResponse(
+                status_code=status.HTTP_404_NOT_FOUND,
+                content={"message" : "User not found"}
+            )
+        
+        new_friends = Friends(
+            requestor_id=current_user.id,
+            addressee_id=user.id
+        )
+        session.add(new_friends)
+        await session.commit()
+        await session.refresh(new_friends)
+
+        return JSONResponse(
+            status_code=200,
+            content={"message" : "Friend Added Successfully"}
+        )
     except Exception as e:
         print(e)
         return JSONResponse(

@@ -12,4 +12,9 @@ class ChatItem(BaseModel):
     current_user_id: int
 
     class Config:
-        orm_mode = True 
+        orm_mode = True
+
+class AddFriendItem(BaseModel):
+    userId: int
+    username: str
+    userTag: str 

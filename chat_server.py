@@ -417,8 +417,8 @@ async def disconnect(websocket):
 
 async def main():
     db = Database()
-    async with serve(lambda ws: handler(ws, db), "localhost", 8001) as server:
-        print("WebSocket sunucusu başlatıldı: wss://localhost:8001")
+    async with serve(lambda ws: handler(ws, db), "0.0.0.0", 8001) as server:
+        print("WebSocket sunucusu başlatıldı: ws://0.0.0.0:8001")
         print("Desteklenen aksiyonlar:")
         print("- send_direct_message: Direct mesaj gönder")
         print("- send_group_message: Grup mesajı gönder")

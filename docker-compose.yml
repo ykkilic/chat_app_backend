@@ -11,10 +11,10 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
-      - /Users/yigitkagankilic/Desktop/Projects/chatapp-backend/postgres_data:/var/lib/postgresql/data
+      - /home/chat_app_backend/chat_app_backend/postgres_data:/var/lib/postgresql/data
     networks:
-      upschool:
-        ipv4_address: 172.25.0.7
+      chat_backend_upschool:
+        ipv4_address: 172.30.0.7
     command: postgres -c wal_level=logical
     restart: always
 
@@ -27,8 +27,8 @@ services:
     ports:
       - "8082:80"
     networks:
-      upschool:
-        ipv4_address: 172.25.0.6
+      chat_backend_upschool:
+        ipv4_address: 172.30.0.6
     restart: always
 
   redis:
@@ -38,11 +38,11 @@ services:
     ports:
       - "6379:6379"
     volumes:
-      - /Users/yigitkagankilic/Desktop/Projects/chatapp-backend/redis_data:/data
+      - /home/chat_app_backend/chat_app_backend/redis_data:/data
 
 networks:
-  upschool:
+  chat_backend_upschool:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.25.0.0/16
+        - subnet: 172.30.0.0/16

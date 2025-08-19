@@ -1,0 +1,8 @@
+# Python venv
+venv/
+.env/
+
+# Özel Dizinler
+/postgres_data
+/redis_data
+/__pycache__

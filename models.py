@@ -22,6 +22,7 @@ class User(Base):
 
     id = Column(Integer, primary_key=True)
     username = Column(String(50), unique=True, nullable=False)
+    user_tag = Column(String(4), unique=True, nullable=False)
     email = Column(String(100), unique=True, nullable=False)
     password = Column(String(128), nullable=False)
     is_email_validation = Column(Boolean, default=False)
@@ -73,6 +74,18 @@ class Message(Base):
     # Mesajı alan kullanıcıya referans
     receiver = relationship("User", foreign_keys=[receiver_id], back_populates="received_messages")
 
+class Friends(Base):
+    __tablename__ = 'friends'
+
+    id = Column(Integer, primary_key=True)
+    # İstek gönderen kullanıcı
+    requestor_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    # İstek alan kullanıcı
+    addressee_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+
+    # İlişkileri tanımlayın
+    requestor = relationship("User", foreign_keys=[requestor_id])
+    addressee = relationship("User", foreign_keys=[addressee_id])
 
 # db = Database()
 # async def main():
